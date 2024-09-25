@@ -25,7 +25,6 @@ const PropertyList: React.FC = () => {
   const [showNewPropertyForm, setShowNewPropertyForm] = useState(false);
   const { user } = useAuth();
 
-
   useEffect(() => {
     if (user) {
       fetchProperties();
@@ -33,14 +32,19 @@ const PropertyList: React.FC = () => {
   }, [user]);
 
   const fetchProperties = async () => {
-    const response = await fetch('/api/properties');
-    if (response.ok) {
-      const data = await response.json();
-      setProperties(data);
-    } else {
-      console.error('Failed to fetch properties');
+    try {
+      const response = await fetch('/api/properties');
+      if (response.ok) {
+        const data = await response.json();
+        setProperties(data);
+      } else {
+        console.error('Failed to fetch properties');
+      }
+    } catch (error) {
+      console.error('Error fetching properties:', error);
     }
   };
+
 
 
   const toggleExpand = (propertyId: string) => {
@@ -105,8 +109,9 @@ const PropertyList: React.FC = () => {
               onCancel={() => setShowNewPropertyForm(false)}
             />
           )}
-          <ul className="space-y-4">
-        {properties.map((property) => (
+          {properties.length > 0 ? (
+            <ul className="space-y-4">
+              {properties.map((property) => (
           <li key={property.id} className="bg-white p-4 shadow rounded">
             {editingProperty === property.id ? (
               <PropertyForm
@@ -144,12 +149,15 @@ const PropertyList: React.FC = () => {
             )}
           </li>
         ))}
-      </ul>
-        </>
+        </ul>
       ) : (
-        <p>Please sign in to view your properties.</p>
+        <p>You haven't added any properties yet.</p>
       )}
-    </div>
-  );
+    </>
+  ) : (
+    <p>Please sign in to view your properties.</p>
+  )}
+</div>
+);
 };
 export default PropertyList;
