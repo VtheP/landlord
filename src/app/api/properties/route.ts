@@ -1,31 +1,45 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../../../firebase';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, getDoc } from 'firebase/firestore';
-import { auth } from '../../../../firebase';
+import { auth } from 'firebase-admin';
 
 const propertiesCollection = collection(db, 'properties');
 
-export async function GET() {
-  const user = auth.currentUser;
-  if (!user) {
+async function verifyToken(request: NextRequest) {
+  const token = request.headers.get('Authorization')?.split('Bearer ')[1];
+  if (!token) {
+    return null;
+  }
+  try {
+    const decodedToken = await auth().verifyIdToken(token);
+    return decodedToken.uid;
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return null;
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const uid = await verifyToken(request);
+  if (!uid) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const q = query(propertiesCollection, where("userId", "==", user.uid));
+  const q = query(propertiesCollection, where("userId", "==", uid));
   const snapshot = await getDocs(q);
   const properties = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   return NextResponse.json(properties);
 }
 
-export async function POST(request: Request) {
-  const user = auth.currentUser;
-  if (!user) {
+export async function POST(request: NextRequest) {
+  const uid = await verifyToken(request);
+  if (!uid) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const newProperty = { ...body, userId: user.uid, units: [] };
+    const newProperty = { ...body, userId: uid, units: [] };
     const docRef = await addDoc(propertiesCollection, newProperty);
     return NextResponse.json({ id: docRef.id, ...newProperty }, { status: 201 });
   } catch (error) {
@@ -33,9 +47,9 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
-  const user = auth.currentUser;
-  if (!user) {
+export async function PUT(request: NextRequest) {
+  const uid = await verifyToken(request);
+  if (!uid) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -44,7 +58,7 @@ export async function PUT(request: Request) {
     const propertyRef = doc(db, 'properties', body.id);
     const propertySnap = await getDoc(propertyRef);
 
-    if (!propertySnap.exists() || propertySnap.data().userId !== user.uid) {
+    if (!propertySnap.exists() || propertySnap.data().userId !== uid) {
       return NextResponse.json({ error: 'Unauthorized or property not found' }, { status: 403 });
     }
 
@@ -55,9 +69,9 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
-  const user = auth.currentUser;
-  if (!user) {
+export async function DELETE(request: NextRequest) {
+  const uid = await verifyToken(request);
+  if (!uid) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -68,7 +82,7 @@ export async function DELETE(request: Request) {
       const propertyRef = doc(db, 'properties', id);
       const propertySnap = await getDoc(propertyRef);
 
-      if (!propertySnap.exists() || propertySnap.data().userId !== user.uid) {
+      if (!propertySnap.exists() || propertySnap.data().userId !== uid) {
         return NextResponse.json({ error: 'Unauthorized or property not found' }, { status: 403 });
       }
 

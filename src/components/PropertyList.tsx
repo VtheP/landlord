@@ -151,7 +151,7 @@ const PropertyList: React.FC = () => {
         ))}
         </ul>
       ) : (
-        <p>You haven't added any properties yet.</p>
+        <p>You have not added any properties yet.</p>
       )}
     </>
   ) : (
