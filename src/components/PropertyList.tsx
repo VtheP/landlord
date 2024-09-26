@@ -23,17 +23,25 @@ const PropertyList: React.FC = () => {
   const [expandedProperty, setExpandedProperty] = useState<string | null>(null);
   const [editingProperty, setEditingProperty] = useState<string | null>(null);
   const [showNewPropertyForm, setShowNewPropertyForm] = useState(false);
-  const { user } = useAuth();
+  const { user, getIdToken } = useAuth();
 
   useEffect(() => {
     if (user) {
       fetchProperties();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchProperties = async () => {
+    if (!user) return;
+
     try {
-      const response = await fetch('/api/properties');
+      const token = await getIdToken();
+      const response = await fetch('/api/properties', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setProperties(data);
@@ -45,8 +53,6 @@ const PropertyList: React.FC = () => {
     }
   };
 
-
-
   const toggleExpand = (propertyId: string) => {
     setExpandedProperty(expandedProperty === propertyId ? null : propertyId);
   };
@@ -56,29 +62,53 @@ const PropertyList: React.FC = () => {
   };
 
   const handleSaveProperty = async (property: Property) => {
-    await updateProperty(property);
-    setEditingProperty(null);
+    if (!user) return;
+
+    try {
+      const token = await getIdToken();
+      await fetch('/api/properties', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(property),
+      });
+      setEditingProperty(null);
+      await fetchProperties();
+    } catch (error) {
+      console.error('Error updating property:', error);
+    }
   };
 
   const handleDeleteProperty = async (propertyId: string) => {
-    await fetch(`/api/properties?id=${propertyId}`, { method: 'DELETE' });
-    await fetchProperties();
-  };
+    if (!user) return;
 
-  const updateProperty = async (property: Property) => {
-    await fetch('/api/properties', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(property),
-    });
-    await fetchProperties();
+    try {
+      const token = await getIdToken();
+      await fetch(`/api/properties?id=${propertyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      await fetchProperties();
+    } catch (error) {
+      console.error('Error deleting property:', error);
+    }
   };
 
   const handleSaveNewProperty: NewPropertyFormProps['onSave'] = async (property) => {
+    if (!user) return;
+
     try {
+      const token = await getIdToken();
       const response = await fetch('/api/properties', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(property),
       });
       if (response.ok) {
@@ -112,52 +142,53 @@ const PropertyList: React.FC = () => {
           {properties.length > 0 ? (
             <ul className="space-y-4">
               {properties.map((property) => (
-          <li key={property.id} className="bg-white p-4 shadow rounded">
-            {editingProperty === property.id ? (
-              <PropertyForm
-                property={property}
-                onSave={handleSaveProperty}
-                onCancel={() => setEditingProperty(null)}
-              />
-            ) : (
-              <>
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-semibold">{property.address}</h3>
-                  <div>
-                    <button onClick={() => handleEditProperty(property.id)} className="text-blue-500 mr-2">Edit</button>
-                    <button onClick={() => handleDeleteProperty(property.id)} className="text-red-500 mr-2">Delete</button>
-                    <span className="cursor-pointer" onClick={() => toggleExpand(property.id)}>
-                      {expandedProperty === property.id ? '▲' : '▼'}
-                    </span>
-                  </div>
-                </div>
-                {expandedProperty === property.id && (
-                  <div className="mt-4">
-                    <h4 className="text-lg font-semibold mb-2">Units</h4>
-                    <ul className="space-y-2">
-                      {property.units.map((unit) => (
-                        <li key={unit.id} className="border p-2 rounded">
-                          <p>Renter: {unit.renter}</p>
-                          <p>Contact: {unit.contact}</p>
-                          <p>Rent: €{unit.rent}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </>
-            )}
-          </li>
-        ))}
-        </ul>
+                <li key={property.id} className="bg-white p-4 shadow rounded">
+                  {editingProperty === property.id ? (
+                    <PropertyForm
+                      property={property}
+                      onSave={handleSaveProperty}
+                      onCancel={() => setEditingProperty(null)}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-semibold">{property.address}</h3>
+                        <div>
+                          <button onClick={() => handleEditProperty(property.id)} className="text-blue-500 mr-2">Edit</button>
+                          <button onClick={() => handleDeleteProperty(property.id)} className="text-red-500 mr-2">Delete</button>
+                          <span className="cursor-pointer" onClick={() => toggleExpand(property.id)}>
+                            {expandedProperty === property.id ? '▲' : '▼'}
+                          </span>
+                        </div>
+                      </div>
+                      {expandedProperty === property.id && (
+                        <div className="mt-4">
+                          <h4 className="text-lg font-semibold mb-2">Units</h4>
+                          <ul className="space-y-2">
+                            {property.units.map((unit) => (
+                              <li key={unit.id} className="border p-2 rounded">
+                                <p>Renter: {unit.renter}</p>
+                                <p>Contact: {unit.contact}</p>
+                                <p>Rent: €{unit.rent}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>You haven't added any properties yet.</p>
+          )}
+        </>
       ) : (
-        <p>You have not added any properties yet.</p>
+        <p>Please sign in to view your properties.</p>
       )}
-    </>
-  ) : (
-    <p>Please sign in to view your properties.</p>
-  )}
-</div>
-);
+    </div>
+  );
 };
+
 export default PropertyList;
